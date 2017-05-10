@@ -20,7 +20,7 @@ import scipy.io as sio
 import skimage.io
 import os
 
-caffe_root = '/home/wuxiang/caffe/'
+caffe_root = '/opt/caffe/'
 
 import sys
 sys.path.insert(0, caffe_root + 'python')
@@ -109,19 +109,32 @@ def extract_feature(network_proto_path,
     """
     #network_proto_path, network_model_path = network_path
 
-    net = caffe.Classifier(network_proto_path, network_model_path)
-    net.set_phase_test()
+    #--->added by zhaoyafei 2017-05-09
+#    caffe.set_phase_test()
+    if data_mean is not None and type(data_mean) is str:
+        data_mean = np.load(data_mean)
 
-    net.set_mode_gpu()
+    caffe.set_mode_gpu()
+#    net = caffe.Classifier(network_proto_path, network_model_path, None, data_mean, None, None, (2,1,0))
+    net = caffe.Classifier(network_def, network_model, None, data_mean, 0.0078125, 256, (2,1,0))
+#    net = caffe.Classifier(network_def, network_model, None, data_mean, 2.0, 1.0, (2,1,0))
+   #--->end added by zhaoyafei 2017-05-09
 
-    # input preprocessing: 'data' is the name of the input blob == net.inputs[0]
-    #net.set_mean('data', caffe_root + 'python/caffe/imagenet/ilsvrc_2012_mean.npy')  # ImageNet mean
-    net.set_mean('data', data_mean)
-    if not image_as_grey:
-        net.set_channel_swap('data', (2,1,0))  # the reference model has channels in BGR order instead of RGB
-
-    #net.set_input_scale('data', 256)  # the reference model operates on images in [0,255] range instead of [0,1]
-    net.set_input_scale('data', 1)
+    #--->commented by zhaoyafei 2017-05-09
+#    net = caffe.Classifier(network_proto_path, network_model_path)
+#    net.set_phase_test()
+#
+#    net.set_mode_gpu()
+#
+#    # input preprocessing: 'data' is the name of the input blob == net.inputs[0]
+#    #net.set_mean('data', caffe_root + 'python/caffe/imagenet/ilsvrc_2012_mean.npy')  # ImageNet mean
+#    net.set_mean('data', data_mean)
+#    if not image_as_grey:
+#        net.set_channel_swap('data', (2,1,0))  # the reference model has channels in BGR order instead of RGB
+#
+#    #net.set_input_scale('data', 256)  # the reference model operates on images in [0,255] range instead of [0,1]
+#    net.set_input_scale('data', 1)
+    #--->end commented by zhaoyafei 2017-05-09
 
     #img_list = [caffe.io.load_image(p) for p in image_file_list]
 
@@ -139,7 +152,9 @@ def extract_feature(network_proto_path,
     #exit()
 
     #params = OrderedDict( [(k, (v[0].data,v[1].data)) for k, v in net.params.items()])
-    features_shape = (len(image_list), shp[1], shp[2], shp[3])
+    #features_shape = (len(image_list), shp[1], shp[2], shp[3])
+    #features_shape = (len(image_list), shp[1])
+    features_shape = (len(image_list),) + shp[1:]
     features = np.empty(features_shape, dtype='float32', order='C')
     img_batch = []
     for cnt, path in zip(range(features_shape[0]), image_list):
@@ -180,7 +195,9 @@ def extract_feature(network_proto_path,
 
             #print blobs[layer_name][0,:,:,:]
             # items of blobs are references, must make copy!
-            features[cnt-len(img_batch)+1:cnt+1, :,:,:] = blobs[layer_name][0:len(img_batch),:,:,:].copy()
+            #features[cnt-len(img_batch)+1:cnt+1, :,:,:] = blobs[layer_name][0:len(img_batch),:,:,:].copy()
+            #features[cnt-len(img_batch)+1:cnt+1, :] = blobs[layer_name][0:len(img_batch),:].copy()
+            features[cnt-len(img_batch)+1:cnt+1, ...] = blobs[layer_name][0:len(img_batch), ...].copy()
             img_batch = []
 
         #features.append(blobs[layer_name][0,:,:,:].copy())
@@ -200,8 +217,8 @@ def extract_features_to_mat(network_proto_path, network_model_path, data_mean,
     ftr = extract_feature(network_proto_path, network_model_path,
                           img_list, data_mean, layer_name, image_as_grey)
     #print ftr.shape
-    if ftr.shape[3]==1 and ftr.shape[2]==1:
-        ftr = ftr[:,:,0,0]
+#    if ftr.shape[3]==1 and ftr.shape[2]==1:
+#        ftr = ftr[:,:,0,0]
     #print ftr.shape
     #labels = np.asarray(labels, dtype='float32')
     float_labels = labels_list_to_float(labels)
@@ -320,9 +337,17 @@ def save_filters(network_def, network_model, save_path):
     #print 'arg1', network_def
     #print 'arg2', network_model
     #print 'arg3', save_path
+    
+    #--->added by zhaoyafei 2017-05-09
+    caffe.set_phase_test()
+    caffe.set_mode_cpu()
+    #--->end added by zhaoyafei 2017-05-09
+
     net = caffe.Classifier(network_def, network_model)
-    net.set_phase_test()
-    net.set_mode_cpu()
+    #--->commented by zhaoyafei 2017-05-09
+#    net.set_phase_test()
+#    net.set_mode_cpu()
+    #--->end commented by zhaoyafei 2017-05-09
 
     '''
     net.set_mean('data', None)
@@ -355,17 +380,31 @@ def save_features(network_def, network_model, mean_file, img_path, save_path):
     print 'hello'
     img = caffe.io.load_image(img_path)
 
-    net = caffe.Classifier(network_def, network_model)
-    net.set_phase_test()
-    net.set_mode_cpu()
-    net.set_device(2)
-    # input preprocessing: 'data' is the name of the input blob == net.inputs[0]
-    #net.set_mean('data', caffe_root + 'python/caffe/imagenet/ilsvrc_2012_mean.npy')  # ImageNet mean
-    net.set_mean('data', mean_file)
-    net.set_channel_swap('data', (2,1,0))  # the reference model has channels in BGR order instead of RGB
+   #--->added by zhaoyafei 2017-05-09
+    data_mean = None
+    if mean_file is not None:
+        data_mean = np.load(mean_file)
+    caffe.set_mode_cpu()
+#    caffe.set_device(2)
+#    net = caffe.Classifier(network_def, network_model, None, data_mean, None, None, (2,1,0))
+    net = caffe.Classifier(network_def, network_model, None, data_mean, 0.0078125, 256, (2,1,0))
+#    net = caffe.Classifier(network_def, network_model, None, data_mean, 2.0, 1.0, (2,1,0))
+    #--->end added by zhaoyafei 2017-05-09
+    
+    #--->commented by zhaoyafei 2017-05-09
+#    net = caffe.Classifier(network_def, network_model)
+#    net.set_phase_test()
+#    net.set_mode_cpu()
+#    net.set_device(2)
+#    # input preprocessing: 'data' is the name of the input blob == net.inputs[0]
+#    #net.set_mean('data', caffe_root + 'python/caffe/imagenet/ilsvrc_2012_mean.npy')  # ImageNet mean
+#    net.set_mean('data', mean_file)
+#    net.set_channel_swap('data', (2,1,0))  # the reference model has channels in BGR order instead of RGB
+#
+#    #net.set_input_scale('data', 256)  # the reference model operates on images in [0,255] range instead of [0,1]
+#    net.set_input_scale('data', 1)
+    #--->commented by zhaoyafei 2017-05-09
 
-    #net.set_input_scale('data', 256)  # the reference model operates on images in [0,255] range instead of [0,1]
-    net.set_input_scale('data', 1)
     scores = net.predict([img], oversample=False)
 
     blobs = OrderedDict( [(k, v.data) for k, v in net.blobs.items()])

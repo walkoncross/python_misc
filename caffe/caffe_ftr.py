@@ -116,8 +116,8 @@ def extract_feature(network_proto_path,
 
     caffe.set_mode_gpu()
 #    net = caffe.Classifier(network_proto_path, network_model_path, None, data_mean, None, None, (2,1,0))
-    net = caffe.Classifier(network_def, network_model, None, data_mean, 0.0078125, 255, (2,1,0))
-#    net = caffe.Classifier(network_def, network_model, None, data_mean, 2.0, 1.0, (2,1,0))
+    net = caffe.Classifier(network_proto_path, network_model_path, None, data_mean, 0.0078125, 255, (2,1,0))
+#    net = caffe.Classifier(network_proto_path, network_model_path, None, data_mean, 2.0, 1.0, (2,1,0))
    #--->end added by zhaoyafei 2017-05-09
 
     #--->commented by zhaoyafei 2017-05-09

@@ -20,6 +20,8 @@ import scipy.io as sio
 import skimage.io
 import os
 
+import time
+
 caffe_root = '/opt/caffe/'
 
 import sys
@@ -157,7 +159,15 @@ def extract_feature(network_proto_path,
     features_shape = (len(image_list),) + shp[1:]
     features = np.empty(features_shape, dtype='float32', order='C')
     img_batch = []
+
+	cnt_load_img = 0
+	cnt_predict = 0
+
+	time_load_img = 0.0
+	time_predict = 0.0
+
     for cnt, path in zip(range(features_shape[0]), image_list):
+		t1 = time.clock()
         img = caffe.io.load_image(path, color = not image_as_grey)
         if image_as_grey and img.shape[2] != 1:
             img = skimage.color.rgb2gray(img)
@@ -167,10 +177,20 @@ def extract_feature(network_proto_path,
         #print img[0:10,0:10,:]
         #exit()
         img_batch.append(img)
+		t2 = time.clock()
+
+		cnt_load_img += 1
+		time_predict += (t2 -t1)
+
         #print 'image shape: ', img.shape
         #print path, type(img), img.mean()
         if (len(img_batch) == batch_size) or cnt==features_shape[0]-1:
-            scores = net.predict(img_batch, oversample=False)
+			t1 = time.clock()
+			scores = net.predict(img_batch, oversample=False)
+			t2 = time.clock()
+			time_predict += (t2-t1)
+			cnt_predict += len(img_batch)
+
             '''
             print 'blobs[%s].shape' % (layer_name,)
             tmp =  blobs[layer_name]
@@ -191,6 +211,8 @@ def extract_feature(network_proto_path,
             # syncs the memory between GPU and CPU
             blobs = OrderedDict( [(k, v.data) for k, v in net.blobs.items()])
 
+			print 'predict %d images cost %f seconds, average time: %f seconds' % (len(img_batch), time_predict, time_predict/len(img_batch))
+
             print '%d images processed' % (cnt+1,)
 
             #print blobs[layer_name][0,:,:,:]
@@ -201,6 +223,10 @@ def extract_feature(network_proto_path,
             img_batch = []
 
         #features.append(blobs[layer_name][0,:,:,:].copy())
+	
+	print('Load %d images, cost %f seconds, average time: %f seconds' % (cnt_load_img, time_load_img, time_load_img/cnt_load_img))
+	print('Predict %d images, cost %f seconds, average time: %f seconds' % (cnt_predict, time_predict, time_predict/cnt_predict))
+
     features = np.asarray(features, dtype='float32')
     return features
 
